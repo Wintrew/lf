@@ -1,4 +1,4 @@
-LF Language Specification v1.0
+LF Language Specification v1.1
 📋 Overview
 LF (Language Fusion) is a multi-language fusion programming language that allows mixing multiple programming languages in the same source file. It uses a simple tagging system to distinguish code blocks from different languages and provides a unified compilation and execution environment. This optimized version removes external compiler dependencies for basic functionality and adds support for complete language execution when compilers are available. 
 
