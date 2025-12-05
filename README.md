@@ -322,10 +322,7 @@ Optional for full language support:
 - PHP: PHP interpreter
 - Rust: Rust toolchain
 
-To install all required environments, run:
-```
-install_lf_environment.bat
-```
+
 
 ## 🔍 Feature Summary
 - Multi-language Fusion - Use multiple languages in single file
@@ -383,4 +380,5 @@ python lf_main.py package-dll program.lf  # Create DLL wrapper
 #python_import "json"
 
 // Data processing in Python
+
 ```
