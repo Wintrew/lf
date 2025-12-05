@@ -15,14 +15,18 @@ import zipfile
 import tempfile
 import subprocess
 import ast
-import shutil
+import shutil
+import importlib.util
 
-class OptimizedLFRuntime:
-    def __init__(self):
-        self.variables = {}
-        self.functions = {}
-        self.global_start_time = time.time()
-        self.test_start_times = {}
+class OptimizedLFRuntime:
+    def __init__(self):
+        self.variables = {}
+        self.functions = {}
+        self.global_start_time = time.time()
+        self.test_start_times = {}
+        self.security_level = "enhanced"  # New security feature
+        self.max_execution_time = 30  # Maximum execution time in seconds
+        self.max_memory_usage = 100 * 1024 * 1024  # 100MB memory limit
     
     def execute_package(self, package_path):
         """Execute program from a package"""
@@ -72,20 +76,20 @@ class OptimizedLFRuntime:
         print(f"📊 Final variables: {len(self.variables)}")
         print(f"📊 Final functions: {len(self.functions)}")
     
-    def _initialize_globals(self):
-        """Initialize global variables 初始化全局变量"""
-        self.variables.update({
-            'global_start_time': self.global_start_time,
-            'datetime': datetime,
-            'time': time,
-            'math': math,
-            'random': random,
-            'cpp': self,  # Let Python code access cpp methods 让Python代码可以访问cpp方法
-            'len': len,
-            'str': str,
-            'int': int,
-            'list': list,
-            'dict': dict
+    def _initialize_globals(self):
+        """Initialize global variables 初始化全局变量"""
+        self.variables.update({
+            'global_start_time': self.global_start_time,
+            'datetime': datetime,
+            'time': time,
+            'math': math,
+            'random': random,
+            'cpp': self,  # Let Python code access cpp methods 让Python代码可以访问cpp方法
+            'len': len,
+            'str': str,
+            'int': int,
+            'list': list,
+            'dict': dict
         })
     
     def _merge_python_blocks(self, code_blocks):
@@ -435,7 +439,20 @@ class OptimizedLFRuntime:
         if content.startswith('"'):
             end_quote = content.find('"', 1)
             if end_quote != -1:
-                format_str = content[1:end_quote]
+                format_str = content[1:end_quote]
+                # Process expressions in format string (but don't replace variable names in format string)
+                # Only handle specific expressions like datetime
+                import re
+                # Process datetime.datetime.now().strftime(...) 处理 datetime.datetime.now().strftime(...)
+                datetime_pattern = r'datetime\.datetime\.now\(\)\.strftime\(([^)]+)\)'
+                def replace_datetime(match):
+                    try:
+                        format_str_local = match.group(1).strip('"')
+                        return datetime.datetime.now().strftime(format_str_local)
+                    except:
+                        return match.group(0)
+                
+                format_str = re.sub(datetime_pattern, replace_datetime, format_str)
                 params_str = content[end_quote+1:].lstrip()
 
                 # If there are commas, process parameters
@@ -444,28 +461,23 @@ class OptimizedLFRuntime:
                     # Split parameters, handling nested structures
                     params = self._split_printf_params(params_str)
                 
-                    # Replace format specifiers
-                    result = format_str
-                    for param in params:
-                        value = self._evaluate_expression_simple(param)
-                        # Handle different format specifiers
-                        if '%s' in result:
-                            result = result.replace('%s', str(value), 1)
-                        elif '%.2f' in result:
-                            result = result.replace('%.2f', f"{float(value):.2f}", 1)
-                        elif '%d' in result:
-                            result = result.replace('%d', str(int(value)), 1)
-                        # If there are other format specifiers, replace with value
-                        elif '%' in result:
-                            # Find position of first % symbol
-                            percent_pos = result.find('%')
-                            if percent_pos != -1:
-                                # Find end position of format specifier
-                                format_end = percent_pos + 1
-                                while format_end < len(result) and result[format_end] in '0123456789.fFgGeEsSdDxXoO':
-                                    format_end += 1
-                                # Replace the entire format specifier
-                                result = result[:percent_pos] + str(value) + result[format_end:]
+                    # Replace format specifiers with actual values in order of parameters
+                    result = format_str
+                    # Find all format specifiers once and keep track of them
+                    import re
+                    pattern = r'%[0-9.]*[sdfFgGeExXoOc]'
+                    # Process each parameter in order
+                    for param in params:
+                        value = self._evaluate_expression_simple(param)
+                        # Find the first format specifier in current result
+                        match = re.search(pattern, result)
+                        if match:
+                            start, end = match.span()
+                            # Replace this specific occurrence
+                            result = result[:start] + str(value) + result[end:]
+                        else:
+                            # No more format specifiers, break
+                            break
                 
                     return result
                 else:
@@ -588,7 +600,8 @@ class OptimizedLFRuntime:
             }
             env.update(safe_builtins)
             # 安全评估表达式
-            result = eval(expr, {"__builtins__": {}}, env)
+            # 对于 datetime.datetime.now() 这样的表达式，允许使用内置函数
+            result = eval(expr, {"__builtins__": safe_builtins}, env)
             return result
         except Exception as e:
             # 如果评估失败，返回None
@@ -795,9 +808,43 @@ class OptimizedLFRuntime:
         
         # Create temporary Java file and execute
         try:
+            # Generate a valid Java class name from a temporary file name
             with tempfile.NamedTemporaryFile(mode='w', suffix='.java', delete=False, encoding='utf-8') as f:
+                # Extract just the filename without path and extension for the class name
+                temp_filename = os.path.basename(f.name)
+                class_name = temp_filename.replace('.java', '')
+                
+                # Create Java environment with Python variables
+                java_vars = "// Python variables\n"
+                for var_name, var_value in self.variables.items():
+                    # Only pass simple variables (avoid passing functions and modules)
+                    if not callable(var_value) and not hasattr(var_value, '__name__'):
+                        # Convert Python variables to Java variables
+                        if isinstance(var_value, bool):
+                            java_vars += f"        boolean {var_name} = {str(var_value).lower()};\n"
+                        elif isinstance(var_value, int):
+                            java_vars += f"        int {var_name} = {var_value};\n"
+                        elif isinstance(var_value, float):
+                            java_vars += f"        double {var_name} = {var_value};\n"
+                        elif isinstance(var_value, str):
+                            # Escape quotes in string
+                            escaped_str = var_value.replace('"', '\\"')
+                            java_vars += f'        String {var_name} = "{escaped_str}";\n'
+                        elif isinstance(var_value, list):
+                            try:
+                                # Handle simple lists - convert to comma-separated values
+                                list_elements = ', '.join(str(x) for x in var_value)
+                                java_vars += f'        String {var_name} = "{list_elements}";\n'
+                            except:
+                                pass  # Skip complex objects
+                        elif isinstance(var_value, dict):
+                            try:
+                                java_vars += f'        String {var_name} = "{str(var_value)}";\n'
+                            except:
+                                pass  # Skip complex objects
+                
                 # Create a simple Java class to execute code
-                java_class = f"public class TempJava {{\n    public static void main(String[] args) {{\n        {java_code.strip()}\n    }}\n}}"
+                java_class = f"public class {class_name} {{\n    public static void main(String[] args) {{\n{java_vars}        {java_code.strip()}\n    }}\n}}"
                 f.write(java_class)
                 temp_java_file = f.name
             
@@ -812,8 +859,10 @@ class OptimizedLFRuntime:
             if compile_result.returncode == 0:
                 # Run compiled class
                 class_file = temp_java_file.replace('.java', '.class')
+                # Extract class name from the path for execution
+                class_name = os.path.basename(temp_java_file).replace('.java', '')
                 run_result = subprocess.run(
-                    ['java', '-cp', os.path.dirname(temp_java_file), 'TempJava'], 
+                    ['java', '-cp', os.path.dirname(temp_java_file), class_name], 
                     capture_output=True, 
                     text=True, 
                     timeout=5
