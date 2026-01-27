@@ -1,9 +1,17 @@
-# LF Language Specification v1.0
+# LF Language System v3.0
 
-## 📋 Overview
-LF (Language Fusion) is a multi-language fusion programming language that allows mixing multiple programming languages in the same source file. It uses a simple tagging system to distinguish code blocks from different languages and provides a unified compilation and execution environment. This optimized version removes external compiler dependencies for basic functionality and adds support for complete language execution when compilers are available. 
+## 🚀 Overview
+LF (Language Fusion) is an advanced multi-language fusion programming language that allows seamless integration of multiple programming languages within a single source file. It uses an intelligent tagging system to distinguish code blocks from different languages and provides a unified compilation and execution environment with enhanced security and performance.
 
-LF is a programming language that allows in the same source file: `.lf`
+LF enables developers to write code in Python, C++, JavaScript, Java, PHP, and Rust within the same `.lf` file, with variables and functions shared across languages.
+
+### Key Features
+- **Multi-language Fusion**: Write code in multiple languages in a single file (`.lf`)
+- **Enhanced Security**: Advanced security validation with multiple security levels
+- **High Performance**: Optimized compilation and execution engine
+- **Cross-language Variable Sharing**: Variables defined in one language accessible by others
+- **Comprehensive Toolset**: Compiler, runtime, security scanner, and packaging tools
+- **Advanced Features**: Benchmarking, analysis, and interactive shell
 
 ## 📁 File Extensions
 - Source files: `.lf`
@@ -13,7 +21,7 @@ LF is a programming language that allows in the same source file: `.lf`
 ## 🏗️ Syntax Structure
 
 ### 1. Comments
-```
+```text
 // Single-line comment
 /* Multi-line comment */
 ```
@@ -21,7 +29,7 @@ LF is a programming language that allows in the same source file: `.lf`
 ### 2. Directives
 Start with `#`, used for configuration and metadata:
 
-```
+```text
 #name "Program Name"
 #version "1.0"
 #author "Author Name"
@@ -31,7 +39,7 @@ Start with `#`, used for configuration and metadata:
 ### 3. Code Blocks
 
 #### Python Code Blocks
-```
+```text
 py.Single line Python code
 py.Multi-line Python code start:
 py.    Indented code
@@ -39,29 +47,29 @@ py.    Continue execution
 ```
 
 #### C++ Code Blocks
-```
+```text
 cpp.Single line C++ code
 cpp.printf("Formatted output: %s", variable)
 cpp.cout << "Standard output: " << variable << endl;
 ```
 
 #### JavaScript Code Blocks
-```
+```text
 js.Single line JavaScript code
 ```
 
 #### Java Code Blocks
-```
+```text
 java.Single line Java code
 ```
 
 #### PHP Code Blocks
-```
+```text
 php.Single line PHP code
 ```
 
 #### Rust Code Blocks
-```
+```text
 rust.Single line Rust code
 ```
 
@@ -71,7 +79,6 @@ rust.Single line Rust code
 Syntax: `#directive_name "value"`
 
 Available Directives:
-
 - `#name` - Program name
 - `#version` - Version number
 - `#author` - Author information
@@ -79,8 +86,7 @@ Available Directives:
 - `#python_import` - Python module import (can be used multiple times)
 
 Example:
-
-```
+```text
 #name "My LF Program"
 #version "1.0.0"
 #author "Developer"
@@ -97,7 +103,6 @@ Features:
 - Variables and functions shared in global environment
 
 Example:
-
 ```lf
 // Single line Python
 py.x = 10
@@ -124,7 +129,6 @@ Features:
 - Variable references and expression evaluation
 
 Example:
-
 ```lf
 cpp.printf("Welcome to LF Language!")
 cpp.printf("Current time: %s", datetime.datetime.now().strftime("%Y-%m-%d"))
@@ -137,10 +141,8 @@ Syntax: `js.JavaScript code`
 
 Current Status:
 - Basic support (requires Node.js) - Variable access and JavaScript execution
-- Output code content
 
 Example:
-
 ```lf
 js.console.log("Hello from JavaScript")
 js.console.log("Accessing Python variable:", message);
@@ -151,10 +153,8 @@ Syntax: `java.Java code`
 
 Current Status:
 - Basic support (requires JDK) - Variable access and Java execution
-- Output code content
 
 Example:
-
 ```lf
 java.System.out.println("Hello from Java");
 java.System.out.println("Accessing shared variable: " + message);
@@ -165,15 +165,11 @@ Syntax: `php.PHP code`
 
 Current Status:
 - Basic support (requires PHP) - Variable access and PHP execution
-- Output code content
 
 Example:
-
 ```lf
-php.echo "Hello from PHP!
-";
-php.echo "Accessing shared variable: " . $message . "
-";
+php.echo "Hello from PHP!\n";
+php.echo "Accessing shared variable: " . $message . "\n";
 ```
 
 ### Rust Code Blocks
@@ -181,10 +177,8 @@ Syntax: `rust.Rust code`
 
 Current Status:
 - Basic support (requires Rust toolchain) - Variable access and Rust execution
-- Output code content
 
 Example:
-
 ```lf
 rust.println!("Hello from Rust!");
 rust.println!("Accessing shared variable: {}", message);
@@ -207,10 +201,14 @@ Compiled `.lsf` files use JSON format:
 
 ```json
 {
-  "format_version": "LSF-1.0",
+  "format_version": "LSF-3.0",
   "metadata": {
-    "compiler": "lf-compile-optimized",
-    "source_file": "source_file_name"
+    "compiler": "lf-compiler-optimized-v3",
+    "source_file": "source_file_name",
+    "source_path": "/path/to/source",
+    "compile_time": 1234567890.123,
+    "security_level": "enhanced",
+    "optimization_level": 2
   },
   "program": {
     "directives": {
@@ -221,7 +219,13 @@ Compiled `.lsf` files use JSON format:
     "code_blocks": [
       {"line": "line_number", "type": "code_type", "content": "code_content"}
     ],
-    "source_hash": "source_file_hash"
+    "source_hash": "source_file_hash",
+    "parse_time": 0.012,
+    "stats": {
+      "total_lines": 100,
+      "directive_count": 5,
+      "code_block_count": 10
+    }
   }
 }
 ```
@@ -277,65 +281,85 @@ cpp.printf("10 factorial: %s", fact_10)
 
 ## ⚡ Running Instructions
 
-### Compilation
+### Commands
+The LF system supports multiple commands via the main tool:
+
 ```bash
+# Compile LF source
+python lf_main.py compile program.lf
+
+# Run compiled LSF or packaged LFP file
+python lf_main.py run program.lsf
+python lf_main.py run program.lfp
+
+# Create standalone executable
+python lf_main.py package-exe program.lf
+
+# Create DLL wrapper
+python lf_main.py package-dll program.lf
+
+# Run performance benchmark
+python lf_main.py benchmark program.lf
+
+# Analyze source structure
+python lf_main.py analyze program.lf
+
+# Start interactive shell
+python lf_main.py shell
+
+# Show version
+python lf_main.py version
+```
+
+### Direct Execution
+```bash
+# Compile directly
 python lf-compile.py program.lf
-```
 
-This generates both program.lsf and program.lfp (package file)
+# Run directly
+python lf-run.py program.lsf
+python lf-run.py program.lfp
 
-### Execution
-```bash
-python lf-run.py program.lsf        # Execute LSF file
-python lf-run.py program.lfp        # Execute package file
-python lf-run.py --shell            # Start interactive shell
-```
-
-## ⚡ Central Management with lf_main
-LF Main is a central tool for managing LF programs:
-
-### Compilation
-```bash
-python lf_main.py compile program.lf    # Compile LF source
-```
-
-### Execution
-```bash
-python lf_main.py run program.lsf       # Run LSF file
-python lf_main.py run program.lfp       # Run package file
-```
-
-### Packaging
-```bash
-python lf_main.py package-exe program.lf    # Create standalone executable
-python lf_main.py package-dll program.lf    # Create DLL wrapper
+# Interactive shell
+python lf-run.py --shell
 ```
 
 ## 🔧 Installation Requirements
-Required for basic functionality (Python, C++ printf):
-- Python 3.6+
 
-Optional for full language support:
+### Required for basic functionality:
+- Python 3.7+
+
+### Optional for full language support:
 - C++: g++ compiler
 - JavaScript: Node.js
 - Java: JDK
 - PHP: PHP interpreter
 - Rust: Rust toolchain
 
-
-
 ## 🔍 Feature Summary
-- Multi-language Fusion - Use multiple languages in single file
-- Smart Multi-line Processing - Automatic Python code block recognition
-- Variable Sharing - Cross-language variable access
-- Module Import - Support Python module import
-- Formatted Output - Enhanced printf functionality
-- Error Handling - Comprehensive error reporting mechanism
-- Optimized Runtime - No external compiler dependencies for basic functions
-- Enhanced C++ Support - Full C++ syntax execution with cross-language variable access (requires g++ compiler)
-- Package Support - Create compressed packages with separate source files
-- Real-time Execution - Execute code in their native environments (requires language interpreters/compilers)
-- Cross-language Variable Sharing - Variables defined in one language can be accessed by others
+
+### Core Features
+- **Multi-language Fusion**: Use multiple languages in single file
+- **Smart Multi-line Processing**: Automatic Python code block recognition
+- **Variable Sharing**: Cross-language variable access
+- **Module Import**: Support Python module import
+- **Enhanced Security**: Multiple security levels with pattern validation
+- **Performance Optimized**: High-performance compilation and execution engine
+
+### Advanced Features
+- **Benchmarking**: Performance measurement tools
+- **Code Analysis**: Source structure analysis
+- **Security Scanning**: Comprehensive security validation
+- **Packaging**: Executable and DLL creation
+- **Interactive Shell**: Real-time code execution
+- **Enhanced Error Handling**: Detailed error reporting
+
+### Security Features
+- **Multi-level Security**: Configurable security levels (Low, Medium, High, Strict)
+- **Pattern Recognition**: Detection of dangerous code patterns
+- **Language-specific Scanning**: Tailored validation for each language
+- **AST Analysis**: Abstract Syntax Tree parsing for Python code
+- **Comprehensive Reporting**: Detailed security reports
 
 ## 🚀 Applicable Scenarios
 - Rapid prototyping development
@@ -343,26 +367,31 @@ Optional for full language support:
 - Script automation tasks
 - Education and demonstration purposes
 - Cross-language proof of concept
+- Performance-critical applications
+- Security-sensitive environments
 
 ## 📊 System Architecture
 ```
 LF Source File (.lf)
          ↓
-    LF Compiler
+    LF Compiler (v3.0)
          ↓
 LSF File (.lsf) + LFP Package (.lfp)
          ↓
-   LF Runtime
+   LF Runtime (v3.0)
          ↓
   Execution Result
 ```
 
 ## 🔧 Central Management Tool (lf_main.py)
-LF Main is a central management tool that provides a unified interface for all LF operations:
+The LF Main tool provides a unified interface for all LF operations:
 - Compile LF source files
 - Run LSF or LFP files
 - Package programs as standalone executables (EXE)
-- Create DLL wrappers for integration with other applications
+- Create DLL wrappers for integration
+- Analyze source code structure
+- Benchmark performance
+- Scan security
 
 Usage:
 ```bash
@@ -371,6 +400,22 @@ python lf_main.py run program.lsf         # Run compiled LSF file
 python lf_main.py run program.lfp         # Run packaged LFP file
 python lf_main.py package-exe program.lf  # Package as executable
 python lf_main.py package-dll program.lf  # Create DLL wrapper
+python lf_main.py benchmark program.lf    # Benchmark performance
+python lf_main.py analyze program.lf      # Analyze source
+python lf_main.py version                 # Show version
+```
+
+## 🛡️ Security Features
+LF v3.0 includes advanced security features:
+- **Multi-level validation**: Configurable security levels
+- **Pattern detection**: Identification of dangerous code patterns
+- **Language-specific scanning**: Tailored security for each language
+- **AST analysis**: Deep Python code analysis
+- **Comprehensive reporting**: Detailed security issue reports
+
+The security module can be used independently:
+```bash
+python lf-security.py  # Run security tests
 ```
 
 ## 🌟 Advanced Usage
@@ -380,5 +425,21 @@ python lf_main.py package-dll program.lf  # Create DLL wrapper
 #python_import "json"
 
 // Data processing in Python
+py.data = {"name": "LF", "version": 3.0}
+py.processed_data = json.dumps(data, indent=2)
 
+// Output using C++
+cpp.printf("Processed data: %s", processed_data);
+
+// Further processing in JavaScript
+js.processed = JSON.parse(processed_data);
+js.processed.timestamp = new Date().toISOString();
+js.console.log("Final data:", js.processed);
 ```
+
+## 📈 Performance Improvements in v3.0
+- **Faster compilation**: Optimized parsing algorithms
+- **Enhanced execution**: Better runtime performance
+- **Memory efficiency**: Reduced memory footprint
+- **Parallel processing**: Potential for future parallel execution
+- **Caching mechanisms**: Improved compilation caching

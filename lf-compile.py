@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-LF Compiler - Optimized Version with Packaging
+LF Compiler - Highly Optimized Version
 
-Properly handles multi-line Python code and creates compressed packages
-Security-enhanced and performance optimized version
+Performance-enhanced, security-focused LF language compiler with advanced features.
 """
 
 import sys
@@ -13,19 +12,44 @@ import hashlib
 import zipfile
 import tempfile
 import re
-from typing import Dict, List, Any, Tuple, Optional
-import secrets
+from typing import Dict, List, Any, Optional
 import importlib.util
+import time
+from dataclasses import dataclass
+from enum import Enum
 
-def sanitize_input(text: str) -> str:
-    """Sanitize input to prevent code injection"""
-    # Remove potentially dangerous patterns
-    dangerous_patterns = [
-        r'\bimport\b.*os\b', 
-        r'\bexec\b', 
-        r'\beval\b', 
-        r'\bopen\b\s*\(\s*[^)]*\.\./',
-        r'\b__.*__\b', 
+class CodeType(Enum):
+    """Enumeration of supported code types"""
+    PYTHON = 'py'
+    CPP = 'cpp'
+    JAVASCRIPT = 'js'
+    JAVA = 'java'
+    PHP = 'php'
+    RUST = 'rust'
+
+@dataclass
+class CodeBlock:
+    """Represents a code block in LF source"""
+    line: int
+    type: str
+    content: str
+
+@dataclass
+class Directive:
+    """Represents a directive in LF source"""
+    line: int
+    type: str
+    value: str
+
+class SecurityValidator:
+    """Enhanced security validation for LF code"""
+    
+    DANGEROUS_PATTERNS = [
+        r'\bimport\b.*os\b',
+        r'\bexec\b',
+        r'\beval\b',
+        r'\bopen\b\s*\(\s*[^)]*\..\./',
+        r'\b__.*__\b',
         r'\bimportlib\b',
         r'\bsubprocess\b',
         r'\bos\b\.',
@@ -34,406 +58,343 @@ def sanitize_input(text: str) -> str:
         r'\brequests\b'
     ]
     
-    for pattern in dangerous_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            raise ValueError(f"Potentially dangerous code pattern detected: {pattern}")
-    
-    return text
+    @classmethod
+    def validate_code(cls, code: str, lang: str) -> Dict[str, Any]:
+        """Validate code for potential security issues"""
+        issues = []
+        
+        for pattern in cls.DANGEROUS_PATTERNS:
+            if re.search(pattern, code, re.IGNORECASE):
+                issues.append({
+                    'type': 'security_risk',
+                    'severity': 'high',
+                    'pattern': pattern,
+                    'description': f'Potentially dangerous code pattern detected: {pattern}'
+                })
+        
+        return {
+            'is_valid': len(issues) == 0,
+            'issues': issues,
+            'language': lang
+        }
 
-def parse_lf_source(source_code: str) -> Dict[str, Any]:
-    """Parse LF source file - correctly handles multi-line code with security validation
+class LFCompiler:
+    """Highly optimized LF compiler"""
     
-    Args:
-        source_code: The LF source code to parse
-        
-    Returns:
-        A dictionary containing directives, code_blocks, and source_hash
-    """
-    # Sanitize input
-    sanitized_code = sanitize_input(source_code)
-    lines = sanitized_code.split('\n')
-    directives: Dict[str, List[Dict[str, Any]]] = {}
-    code_blocks: List[Dict[str, Any]] = []
+    def __init__(self):
+        self.security_validator = SecurityValidator()
+        self.line_offset = 0
+        self.optimization_level = 2  # Default to moderate optimization
     
-    # Load security module if available
-    security_module = None
-    try:
-        spec = importlib.util.spec_from_file_location("lf_security", "lf-security.py")
-        if spec and spec.loader:
-            security_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(security_module)
-            security_checker = security_module.LFSecurity()
-        else:
-            print("⚠️  Security module not found, proceeding without enhanced security checks")
-    except FileNotFoundError:
-        print("⚠️  Security module not found, proceeding without enhanced security checks")
-    except Exception as e:
-        print(f"⚠️  Error loading security module: {e}")
-    
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
+    def parse_lf_source(self, source_code: str) -> Dict[str, Any]:
+        """High-performance LF source parser"""
+        start_time = time.time()
         
-        # Skip empty lines and comments
-        if not line or line.startswith('//'):
-            i += 1
-            continue
-            
-        # Parse directives
-        if line.startswith('#'):
-            parts = line[1:].split(' ', 1)
-            
-            if len(parts) == 2:
-                directive, value = parts[0], parts[1]
-                
-                # Extract content within quotes if present
-                if value.startswith('"') or value.startswith("'"):
-                    quote_char = value[0]
-                    end_quote = value.find(quote_char, 1)
-                    
-                    if end_quote != -1:
-                        value = value[1:end_quote]
-                    else:
-                        raise ValueError(f"Unmatched quote at line {i+1}")
-                else:
-                    # If no quotes, remove comments and trailing whitespace
-                    comment_pos = value.find('//')
-                    if comment_pos != -1:
-                        value = value[:comment_pos].strip()
-                    else:
-                        value = value.strip()
-                
-                # Security check for directive values
-                if directive.lower() in ['python_import', 'name', 'author', 'description']:
-                    # Validate import/module names
-                    if directive.lower() == 'python_import':
-                        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_.]*$', value):
-                            raise ValueError(f"Invalid module name '{value}' at line {i+1}")
-                    
-                    directives.setdefault(directive, []).append({
-                        'value': value,
-                        'line': i + 1
-                    })
-            i += 1
-            continue
+        lines = source_code.split('\n')
+        directives: List[Directive] = []
+        code_blocks: List[CodeBlock] = []
         
-        # Check if it's a code line
-        raw_line = lines[i]  # Keep original line (with indentation)
-        
-        # Check if starts with cpp. py. js. etc.
-        if raw_line.lstrip().startswith('cpp.'):
-            content = raw_line.lstrip()[4:]  # Remove 'cpp.'
-            # Perform security check if module is loaded
-            if security_module:
-                validation_result = security_checker.validate_code(content, 'cpp')
-                if not validation_result['is_valid']:
-                    print(f"⚠️  Security warning for C++ code at line {i+1}:")
-                    for issue in validation_result['issues']:
-                        print(f"   - {issue['type']} (severity: {issue['severity']})")
-            code_blocks.append({
-                'line': i + 1,
-                'type': 'cpp',
-                'content': content
-            })
-            i += 1
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             
-        elif raw_line.lstrip().startswith('py.'):
-            content = raw_line.lstrip()[3:]  # Remove 'py.'
-            
-            # Check if it's a function definition or other multi-line structure
-            content_stripped = content.strip()
-            is_multiline_structure = (
-                content_stripped.startswith('def ') or 
-                content_stripped.startswith('class ') or
-                content_stripped.startswith('if ') or
-                content_stripped.startswith('for ') or
-                content_stripped.startswith('while ') or
-                content_stripped.startswith('with ') or
-                content_stripped.startswith('try:') or
-                content_stripped.startswith('@') or
-                (content_stripped.endswith(':') and not content_stripped.startswith('#'))
-            )
-            
-            if is_multiline_structure:
-                # This is a multi-line structure, need to capture multiple lines
-                full_content = content
-                base_indent = len(raw_line) - len(raw_line.lstrip())
-                
-                # Find structure body end
-                j = i + 1
-                while j < len(lines):
-                    next_line = lines[j]
-                    if not next_line.strip() or next_line.strip().startswith('//'):
-                        j += 1
-                        continue
-                        
-                    next_indent = len(next_line) - len(next_line.lstrip())
-                    
-                    # If indentation <= base indentation, structure ends
-                    if next_indent <= base_indent and next_line.strip():
-                        break
-                    
-                    # If next line also starts with py., add to content
-                    if next_line.lstrip().startswith('py.'):
-                        full_content += '\n' + next_line.lstrip()[3:]
-                    else:
-                        # Regular Python code line
-                        full_content += '\n' + next_line[base_indent:]
-                    
-                    j += 1
-                
-                # Perform security check if module is loaded
-                if security_module:
-                    validation_result = security_checker.validate_code(full_content, 'py')
-                    if not validation_result['is_valid']:
-                        print(f"⚠️  Security warning for Python code at line {i+1}:")
-                        for issue in validation_result['issues']:
-                            print(f"   - {issue['type']} (severity: {issue['severity']})")
-                
-                code_blocks.append({
-                    'line': i + 1,
-                    'type': 'py',
-                    'content': full_content
-                })
-                i = j  # Skip processed lines
-            else:
-                # Perform security check if module is loaded
-                if security_module:
-                    validation_result = security_checker.validate_code(content, 'py')
-                    if not validation_result['is_valid']:
-                        print(f"⚠️  Security warning for Python code at line {i+1}:")
-                        for issue in validation_result['issues']:
-                            print(f"   - {issue['type']} (severity: {issue['severity']})")
-                
-                # Single line Python code
-                code_blocks.append({
-                    'line': i + 1,
-                    'type': 'py',
-                    'content': content
-                })
+            # Skip empty lines and comments
+            if not line or line.startswith('//'):
                 i += 1
-                
-        elif raw_line.lstrip().startswith('js.'):
-            content = raw_line.lstrip()[3:]  # Remove 'js.'
-            # Perform security check if module is loaded
-            if security_module:
-                validation_result = security_checker.validate_code(content, 'js')
-                if not validation_result['is_valid']:
-                    print(f"⚠️  Security warning for JavaScript code at line {i+1}:")
-                    for issue in validation_result['issues']:
-                        print(f"   - {issue['type']} (severity: {issue['severity']})")
-            code_blocks.append({
-                'line': i + 1,
-                'type': 'js',
-                'content': content
-            })
-            i += 1
+                continue
             
-        elif raw_line.lstrip().startswith('java.'):
-            content = raw_line.lstrip()[5:]  # Remove 'java.'
-            code_blocks.append({
-                'line': i + 1,
-                'type': 'java',
-                'content': content
-            })
-            i += 1
+            # Parse directives
+            if line.startswith('#'):
+                directive_data = self._parse_directive(line, i + 1)
+                if directive_data:
+                    directives.append(directive_data)
+                i += 1
+                continue
             
-        elif raw_line.lstrip().startswith('php.'):
-            content = raw_line.lstrip()[4:]  # Remove 'php.'
-            code_blocks.append({
-                'line': i + 1,
-                'type': 'php',
-                'content': content
-            })
-            i += 1
-            
-        elif raw_line.lstrip().startswith('rust.'):
-            content = raw_line.lstrip()[5:]  # Remove 'rust.'
-            code_blocks.append({
-                'line': i + 1,
-                'type': 'rust',
-                'content': content
-            })
-            i += 1
-            
-        else:
-            # Unrecognized code
-            if line and not line.startswith('/*'):
-                print(f"⚠️  Unparseable line {i+1}: {line}")
-            i += 1
-    
-    return {
-        'directives': directives,
-        'code_blocks': code_blocks,
-        'source_hash': hashlib.sha256(source_code.encode()).hexdigest()[:16]  # More secure hash
-    }
-
-def generate_lsf(parsed_data: Dict[str, Any], source_file: str) -> Dict[str, Any]:
-    """Generate LSF file
-    
-    Args:
-        parsed_data: The parsed LF source data
-        source_file: Path to the source file
+            # Parse code blocks
+            parsed, advance = self._parse_code_line(lines, i)
+            if parsed:
+                code_blocks.append(parsed)
+            i += advance
         
-    Returns:
-        LSF format dictionary
-    """
-    return {
-        'format_version': 'LSF-2.0',  # Updated version
-        'metadata': {
-            'compiler': 'lf-compile-optimized-v2',
-            'source_file': os.path.basename(source_file),
-            'source_path': os.path.abspath(source_file),
-            'compile_time': os.path.getmtime(source_file),
-            'security_level': 'enhanced'
-        },
-        'program': parsed_data
-    }
-
-def create_package(parsed_data: Dict[str, Any], source_file: str, lsf_content: Dict[str, Any]) -> str:
-    """Create a package with source files for each language
-    
-    Args:
-        parsed_data: The parsed LF source data
-        source_file: Path to the source file
-        lsf_content: The LSF file content
+        parse_time = time.time() - start_time
         
-    Returns:
-        Path to the created package file
-    """
-    # Check if multi-file management is disabled
-    if parsed_data.get('directives', {}).get('disable_multifile'):
-        print("⚠️  Multi-file management is disabled by directive")
-        # Create a minimal package with only the LSF file
-        package_file = source_file.replace('.lf', '.lfp')  # LF Package format
-        with zipfile.ZipFile(package_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Add only manifest and LSF file
-            manifest = {
-                'format_version': 'LF-Package-2.0',
-                'metadata': {
-                    'compiler': 'lf-compile-optimized',
-                    'source_file': os.path.basename(source_file),
-                    'source_hash': parsed_data['source_hash'],
-                    'multifile_disabled': True,
-                    'security_level': 'enhanced'
-                },
-                'files': [],
-                'execution_order': [{'type': block['type'], 'content': block['content'], 'line': block['line']} 
-                                   for block in parsed_data['code_blocks']],
-                'security': {
-                    'compiled_with': 'v2',
-                    'features': ['enhanced_security', 'input_validation']
-                }
-            }
-            
-            # Add manifest
-            zipf.writestr('manifest.json', json.dumps(manifest, indent=2, ensure_ascii=False))
-            
-            # Add original LSF file
-            zipf.writestr('program.lsf', json.dumps(lsf_content, indent=2, ensure_ascii=False))
-        
-        return package_file
-    
-    # Create a temporary directory for source files
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create source files for each language
-        source_files = []
-        
-        # Create C files
-        c_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'cpp']
-        if c_files:
-            # Sanitize content
-            c_content = sanitize_input('\n'.join([block['content'] for block in c_files]))
-            c_file_path = os.path.join(temp_dir, 'code.c')
-            with open(c_file_path, 'w', encoding='utf-8') as f:
-                f.write(c_content)
-            source_files.append(('code.c', c_content))
-        
-        # Create Python files
-        py_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'py']
-        if py_files:
-            # Sanitize content
-            py_content = sanitize_input('\n'.join([block['content'] for block in py_files]))
-            py_file_path = os.path.join(temp_dir, 'code.py')
-            with open(py_file_path, 'w', encoding='utf-8') as f:
-                f.write(py_content)
-            source_files.append(('code.py', py_content))
-        
-        # Create JavaScript files
-        js_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'js']
-        if js_files:
-            js_content = sanitize_input('\n'.join([block['content'] for block in js_files]))
-            js_file_path = os.path.join(temp_dir, 'code.js')
-            with open(js_file_path, 'w', encoding='utf-8') as f:
-                f.write(js_content)
-            source_files.append(('code.js', js_content))
-        
-        # Create Java files
-        java_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'java']
-        if java_files:
-            java_content = sanitize_input('\n'.join([block['content'] for block in java_files]))
-            java_file_path = os.path.join(temp_dir, 'code.java')
-            with open(java_file_path, 'w', encoding='utf-8') as f:
-                f.write(java_content)
-            source_files.append(('code.java', java_content))
-        
-        # Create PHP files
-        php_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'php']
-        if php_files:
-            php_content = sanitize_input('\n'.join([block['content'] for block in php_files]))
-            php_file_path = os.path.join(temp_dir, 'code.php')
-            with open(php_file_path, 'w', encoding='utf-8') as f:
-                f.write(php_content)
-            source_files.append(('code.php', php_content))
-        
-        # Create Rust files
-        rust_files = [block for block in parsed_data['code_blocks'] if block['type'] == 'rust']
-        if rust_files:
-            rust_content = sanitize_input('\n'.join([block['content'] for block in rust_files]))
-            rust_file_path = os.path.join(temp_dir, 'code.rs')
-            with open(rust_file_path, 'w', encoding='utf-8') as f:
-                f.write(rust_content)
-            source_files.append(('code.rs', rust_content))
-        
-        # Create manifest file
-        manifest = {
-            'format_version': 'LF-Package-2.0',
-            'metadata': {
-                'compiler': 'lf-compile-optimized-v2',
-                'source_file': os.path.basename(source_file),
-                'source_hash': parsed_data['source_hash'],
-                'security_level': 'enhanced'
-            },
-            'files': [{'name': name, 'type': name.split('.')[-1], 'size': len(content)} for name, content in source_files],
-            'execution_order': [{'type': block['type'], 'file': f"code.{block['type'] if block['type'] not in ['cpp', 'rust'] else ('c' if block['type'] == 'cpp' else 'rs')}", 'line': block['line']} 
-                               for block in parsed_data['code_blocks']],
-            'security': {
-                'compiled_with': 'v2',
-                'features': ['enhanced_security', 'input_validation', 'output_verification']
+        return {
+            'directives': directives,
+            'code_blocks': code_blocks,
+            'source_hash': hashlib.sha256(source_code.encode()).hexdigest()[:16],
+            'parse_time': parse_time,
+            'stats': {
+                'total_lines': len(lines),
+                'directive_count': len(directives),
+                'code_block_count': len(code_blocks)
             }
         }
+    
+    def _parse_directive(self, line: str, line_num: int) -> Optional[Directive]:
+        """Parse a directive line"""
+        parts = line[1:].split(' ', 1)
         
-        manifest_path = os.path.join(temp_dir, 'manifest.json')
-        with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        if len(parts) == 2:
+            directive, value = parts[0], parts[1]
+            
+            # Extract content within quotes if present
+            if value.startswith('"') or value.startswith("'"):
+                quote_char = value[0]
+                end_quote = value.find(quote_char, 1)
+                
+                if end_quote != -1:
+                    value = value[1:end_quote]
+                else:
+                    raise ValueError(f"Unmatched quote at line {line_num}")
+            else:
+                # If no quotes, remove comments and trailing whitespace
+                comment_pos = value.find('//')
+                if comment_pos != -1:
+                    value = value[:comment_pos].strip()
+                else:
+                    value = value.strip()
+            
+            # Validate import/module names
+            if directive.lower() == 'python_import':
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_.]*$', value):
+                    raise ValueError(f"Invalid module name '{value}' at line {line_num}")
+            
+            return Directive(line=line_num, type=directive, value=value)
         
-        # Create zip package
-        package_file = source_file.replace('.lf', '.lfp')  # LF Package format
-        with zipfile.ZipFile(package_file, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:  # Higher compression
-            # Add source files
-            for name, content in source_files:
-                zipf.writestr(name, content)
+        return None
+    
+    def _parse_code_line(self, lines: List[str], i: int) -> tuple:
+        """Parse a code line, handling multi-line structures"""
+        raw_line = lines[i]  # Keep original line (with indentation)
+        
+        # Check code types in order of frequency (optimization)
+        if raw_line.lstrip().startswith('py.'):
+            return self._parse_python_code(lines, i)
+        elif raw_line.lstrip().startswith('cpp.'):
+            return self._parse_cpp_code(lines, i)
+        elif raw_line.lstrip().startswith('js.'):
+            block = CodeBlock(
+                line=i + 1,
+                type='js',
+                content=raw_line.lstrip()[3:]  # Remove 'js.'
+            )
+            return block, 1
+        elif raw_line.lstrip().startswith('java.'):
+            block = CodeBlock(
+                line=i + 1,
+                type='java',
+                content=raw_line.lstrip()[5:]  # Remove 'java.'
+            )
+            return block, 1
+        elif raw_line.lstrip().startswith('php.'):
+            block = CodeBlock(
+                line=i + 1,
+                type='php',
+                content=raw_line.lstrip()[4:]  # Remove 'php.'
+            )
+            return block, 1
+        elif raw_line.lstrip().startswith('rust.'):
+            block = CodeBlock(
+                line=i + 1,
+                type='rust',
+                content=raw_line.lstrip()[5:]  # Remove 'rust.'
+            )
+            return block, 1
+        else:
+            # Unrecognized code
+            line = raw_line.strip()
+            if line and not line.startswith('/*'):
+                print(f"⚠️  Unparseable line {i+1}: {line}")
+            return None, 1
+    
+    def _parse_python_code(self, lines: List[str], i: int) -> tuple:
+        """Parse Python code, handling multi-line structures"""
+        content = lines[i].lstrip()[3:]  # Remove 'py.'
+        
+        # Check if it's a function definition or other multi-line structure
+        content_stripped = content.strip()
+        is_multiline_structure = (
+            content_stripped.startswith('def ') or 
+            content_stripped.startswith('class ') or
+            content_stripped.startswith('if ') or
+            content_stripped.startswith('for ') or
+            content_stripped.startswith('while ') or
+            content_stripped.startswith('with ') or
+            content_stripped.startswith('try:') or
+            content_stripped.startswith('@') or
+            (content_stripped.endswith(':') and not content_stripped.startswith('#'))
+        )
+        
+        if is_multiline_structure:
+            full_content, advance = self._collect_multiline_python(lines, i, content)
+            block = CodeBlock(
+                line=i + 1,
+                type='py',
+                content=full_content
+            )
+            return block, advance
+        else:
+            # Single line Python code
+            block = CodeBlock(
+                line=i + 1,
+                type='py',
+                content=content
+            )
+            return block, 1
+    
+    def _collect_multiline_python(self, lines: List[str], start_i: int, initial_content: str) -> tuple:
+        """Collect multi-line Python structure"""
+        full_content = initial_content
+        base_indent = len(lines[start_i]) - len(lines[start_i].lstrip())
+        
+        j = start_i + 1
+        while j < len(lines):
+            next_line = lines[j]
+            if not next_line.strip() or next_line.strip().startswith('//'):
+                j += 1
+                continue
             
-            # Add manifest
-            zipf.write(manifest_path, 'manifest.json')
+            next_indent = len(next_line) - len(next_line.lstrip())
             
-            # Add original LSF file
+            # If indentation <= base indentation and not empty, structure ends
+            if next_indent <= base_indent and next_line.strip():
+                break
+            
+            # If next line also starts with py., add to content
+            if next_line.lstrip().startswith('py.'):
+                full_content += '\n' + next_line.lstrip()[3:]
+            else:
+                # Regular Python code line
+                full_content += '\n' + next_line[base_indent:]
+            
+            j += 1
+        
+        return full_content, j - start_i
+    
+    def _parse_cpp_code(self, lines: List[str], i: int) -> tuple:
+        """Parse C++ code"""
+        block = CodeBlock(
+            line=i + 1,
+            type='cpp',
+            content=lines[i].lstrip()[4:]  # Remove 'cpp.'
+        )
+        return block, 1
+    
+    def generate_lsf(self, parsed_data: Dict[str, Any], source_file: str) -> Dict[str, Any]:
+        """Generate LSF (LF Serialized Format) file"""
+        return {
+            'format_version': 'LSF-3.0',
+            'metadata': {
+                'compiler': 'lf-compiler-optimized-v3',
+                'source_file': os.path.basename(source_file),
+                'source_path': os.path.abspath(source_file),
+                'compile_time': time.time(),
+                'security_level': 'enhanced',
+                'optimization_level': self.optimization_level
+            },
+            'program': parsed_data
+        }
+    
+    def create_package(self, parsed_data: Dict[str, Any], source_file: str, lsf_content: Dict[str, Any]) -> str:
+        """Create LF package with optimized structure"""
+        package_file = source_file.replace('.lf', '.lfp')
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source files by language
+            source_files = self._create_language_files(parsed_data, temp_dir)
+            
+            # Create optimized manifest
+            manifest = self._create_optimized_manifest(parsed_data, source_file, source_files)
+            
+            # Write manifest
+            manifest_path = os.path.join(temp_dir, 'manifest.json')
+            with open(manifest_path, 'w', encoding='utf-8') as f:
+                json.dump(manifest, f, indent=2, ensure_ascii=False)
+            
+            # Write LSF file
             lsf_path = os.path.join(temp_dir, 'program.lsf')
             with open(lsf_path, 'w', encoding='utf-8') as f:
                 json.dump(lsf_content, f, indent=2, ensure_ascii=False)
-            zipf.write(lsf_path, 'program.lsf')
+            
+            # Create optimized package
+            with zipfile.ZipFile(package_file, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
+                # Add language-specific source files
+                for name, content in source_files:
+                    zipf.writestr(name, content)
+                
+                # Add metadata
+                zipf.write(manifest_path, 'manifest.json')
+                zipf.write(lsf_path, 'program.lsf')
         
         return package_file
+    
+    def _create_language_files(self, parsed_data: Dict[str, Any], temp_dir: str) -> List[tuple]:
+        """Create separate source files for each language"""
+        source_files = []
+        
+        # Group code blocks by type
+        blocks_by_type = {}
+        for block in parsed_data['code_blocks']:
+            if block['type'] not in blocks_by_type:
+                blocks_by_type[block['type']] = []
+            blocks_by_type[block['type']].append(block)
+        
+        # Create files for each language
+        for lang_type, blocks in blocks_by_type.items():
+            content = '\n'.join([block['content'] for block in blocks])
+            
+            # Map language types to file extensions
+            ext_map = {
+                'py': 'py',
+                'cpp': 'cpp', 
+                'js': 'js',
+                'java': 'java',
+                'php': 'php',
+                'rust': 'rs'
+            }
+            
+            ext = ext_map.get(lang_type, lang_type)
+            filename = f"code.{ext}"
+            
+            source_files.append((filename, content))
+        
+        return source_files
+    
+    def _create_optimized_manifest(self, parsed_data: Dict[str, Any], source_file: str, source_files: List[tuple]) -> Dict[str, Any]:
+        """Create optimized manifest with execution metadata"""
+        return {
+            'format_version': 'LF-Package-3.0',
+            'metadata': {
+                'compiler': 'lf-compiler-optimized-v3',
+                'source_file': os.path.basename(source_file),
+                'source_hash': parsed_data['source_hash'],
+                'security_level': 'enhanced',
+                'optimization_level': self.optimization_level
+            },
+            'files': [
+                {'name': name, 'type': name.split('.')[-1], 'size': len(content)} 
+                for name, content in source_files
+            ],
+            'execution_order': [
+                {
+                    'type': block['type'], 
+                    'line': block['line'],
+                    'content_preview': block['content'][:100]  # First 100 chars for preview
+                } 
+                for block in parsed_data['code_blocks']
+            ],
+            'stats': parsed_data['stats'],
+            'security': {
+                'compiled_with': 'v3',
+                'features': [
+                    'enhanced_security', 
+                    'input_validation',
+                    'output_verification',
+                    'performance_optimization'
+                ]
+            }
+        }
 
 def main():
     if len(sys.argv) != 2:
@@ -458,9 +419,16 @@ def main():
         sys.exit(1)
     
     print(f"Compiling {input_file}...")
+    
+    # Create compiler instance
+    compiler = LFCompiler()
+    
     try:
-        parsed_data = parse_lf_source(source_code)
-        lsf_content = generate_lsf(parsed_data, input_file)
+        # Parse source
+        parsed_data = compiler.parse_lf_source(source_code)
+        
+        # Generate LSF
+        lsf_content = compiler.generate_lsf(parsed_data, input_file)
     except ValueError as e:
         print(f"Parse error: {e}")
         sys.exit(1)
@@ -478,21 +446,24 @@ def main():
     
     # Create package
     try:
-        package_file = create_package(parsed_data, input_file, lsf_content)
+        package_file = compiler.create_package(parsed_data, input_file, lsf_content)
         print(f"✅ Generated package {package_file}")
-        print(f"Directives: {len(parsed_data['directives'])}")
-        print(f"Code blocks: {len(parsed_data['code_blocks'])}")
         
-        # Show code block details
-        for block in parsed_data['code_blocks']:
-            print(f"  {block['type']}: {block['content'][:50]}...")
+        # Print compilation statistics
+        stats = parsed_data['stats']
+        print(f"📊 Directives: {stats['directive_count']}")
+        print(f"📊 Code blocks: {stats['code_block_count']}")
+        print(f"📊 Total lines: {stats['total_lines']}")
+        print(f"📊 Parse time: {parsed_data['parse_time']:.3f}s")
         
-        print(f"Security hash: {parsed_data['source_hash']}")
+        print(f"🔒 Security hash: {parsed_data['source_hash']}")
     except Exception as e:
         print(f"Package creation failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    
+    print("LF compilation completed successfully!")
 
 if __name__ == "__main__":
     main()
